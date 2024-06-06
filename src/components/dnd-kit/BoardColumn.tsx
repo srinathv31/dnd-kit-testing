@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Task, TaskCard } from "./TaskCard";
 import { cva } from "class-variance-authority";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import { Card, CardHeader, CardContent } from "../ui/card";
 
 export interface Column {
   id: UniqueIdentifier;

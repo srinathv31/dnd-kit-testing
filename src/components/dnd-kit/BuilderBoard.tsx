@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { BoardColumn, BoardContainer } from "./BoardColumn";
 import {
   DndContext,
   type DragEndEvent,
@@ -18,11 +19,12 @@ import {
   MouseSensor,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove } from "@dnd-kit/sortable";
-import { BoardColumn, BoardContainer, Column } from "./BoardColumn";
-import { Task, TaskCard } from "./TaskCard";
-import { coordinateGetter } from "./multipleContainersKeyboardPreset";
+import { type Task, TaskCard } from "./TaskCard";
+import type { Column } from "./BoardColumn";
 import { hasDraggableData } from "./utils";
+import { coordinateGetter } from "./multipleContainersKeyboardPreset";
 import { ReserveList } from "./ReserveList";
+import { v4 as uuidv4 } from "uuid";
 
 const defaultCols = [
   {
@@ -37,28 +39,20 @@ const defaultCols = [
 
 export type ColumnId = (typeof defaultCols)[number]["id"];
 
-const initialTasks: Task[] = [
-  {
-    id: "task1",
-    columnId: "builder",
-    content: "Write Screen",
-  },
-  {
-    id: "task2",
-    columnId: "builder",
-    content: "Read Screen",
-  },
-];
 export function BuilderBoard() {
   const [columns, setColumns] = useState<Column[]>(defaultCols);
   const pickedUpTaskColumn = useRef<ColumnId | null>(null);
   const columnsId = useMemo(() => columns.map((col) => col.id), [columns]);
 
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  useEffect(() => {
+    console.log("Tasks", tasks);
+  }, [tasks]);
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -250,16 +244,34 @@ export function BuilderBoard() {
 
     if (activeId === overId) return;
 
-    const isActiveAColumn = activeData?.type === "Column";
-    if (!isActiveAColumn) return;
+    const isActiveATask = activeData?.type === "Task";
 
-    setColumns((columns) => {
-      const activeColumnIndex = columns.findIndex((col) => col.id === activeId);
+    if (isActiveATask) {
+      setTasks((tasks) => {
+        const activeIndex = tasks.findIndex((t) => t.id === activeId);
+        const overIndex = tasks.findIndex((t) => t.id === overId);
 
-      const overColumnIndex = columns.findIndex((col) => col.id === overId);
+        if (activeIndex === -1) {
+          // New task from ReserveList
+          const newTask: Task = {
+            ...activeData.task,
+            columnId: "builder",
+            id: uuidv4(),
+          };
+          return [...tasks, newTask];
+        }
 
-      return arrayMove(columns, activeColumnIndex, overColumnIndex);
-    });
+        const activeTask = tasks[activeIndex];
+        if (!activeTask) return tasks;
+
+        if (over.data.current?.type === "Column") {
+          activeTask.columnId = overId as ColumnId;
+          return [...tasks];
+        } else {
+          return arrayMove(tasks, activeIndex, overIndex);
+        }
+      });
+    }
   }
 
   function onDragOver(event: DragOverEvent) {
@@ -269,7 +281,7 @@ export function BuilderBoard() {
     const activeId = active.id;
     const overId = over.id;
 
-    if (activeId === overId) return;
+    if (!activeId || !overId) return;
 
     if (!hasDraggableData(active) || !hasDraggableData(over)) return;
 
@@ -281,13 +293,15 @@ export function BuilderBoard() {
 
     if (!isActiveATask) return;
 
-    // Im dropping a Task over another Task
+    // Dropping a Task over another Task
     if (isActiveATask && isOverATask) {
       setTasks((tasks) => {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
         const overIndex = tasks.findIndex((t) => t.id === overId);
         const activeTask = tasks[activeIndex];
         const overTask = tasks[overIndex];
+        if (!activeTask || !overTask) return tasks;
+
         if (
           activeTask &&
           overTask &&
@@ -303,14 +317,14 @@ export function BuilderBoard() {
 
     const isOverAColumn = overData?.type === "Column";
 
-    // Im dropping a Task over a column
+    // Dropping a Task over a column
     if (isActiveATask && isOverAColumn) {
       setTasks((tasks) => {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
         const activeTask = tasks[activeIndex];
         if (activeTask) {
           activeTask.columnId = overId as ColumnId;
-          return arrayMove(tasks, activeIndex, activeIndex);
+          return [...tasks];
         }
         return tasks;
       });
